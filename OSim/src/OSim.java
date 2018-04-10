@@ -1,3 +1,4 @@
+import java.io.*;
 import java.util.Random;
 
 public class OSim {
@@ -105,5 +106,60 @@ public class OSim {
 	
 	public static void selectPtoCPU(){
 		
+	}
+	
+	public static PCB[] readFile(String lo){
+		PCB[] pcb= new PCB[5000]; //Size can vary
+		String line="";
+		int count=0; 
+		 try {
+	            FileReader fileReader = new FileReader(lo);
+	            BufferedReader bufferedReader = new BufferedReader(fileReader);
+
+	            while((line = bufferedReader.readLine()) != null) {  	//go through the file line by line
+	                int cp,sz,id,size,time;
+	                cp = line.indexOf(";CPU"); 							//flag where ID ends
+	                sz = line.indexOf(";SZ");							//flag where CPU time ends
+	                id = Integer.parseInt(line.substring(3, cp));  		//Read ID then Convert it from String to integer
+	                time = Integer.parseInt(line.substring(cp+5, sz));	//Read CPU time then Convert it from String to integer
+	                size = Integer.parseInt(line.substring(sz+4));		//Read the Size then Convert it from String to integer
+	                pcb[count++]= new PCB(id,size,time,PCB.state.New);	// Add everything to PCB[i] Array 
+	            }   
+	            System.out.println(count+" Processes added");
+
+	            // close file.
+	            bufferedReader.close();         
+	        }
+	        catch(FileNotFoundException ex) { 
+	            System.out.println("Unable to open file '" +lo + ","+ex);                
+	        }
+	        catch(IOException ex) { 
+	            System.out.println("Error reading file '"+ lo + ","+ex);                  
+	        }catch(Exception ex) {  // Every other error
+	            System.out.println("Error '"+ lo + ","+ex);                  
+		        }
+		 return pcb;
+	}
+	
+	public static void writeFile(String filename,PCB[] pcb,int size){
+		int i = 0;
+        try {
+            FileWriter fileWriter = new FileWriter(filename);
+            BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+
+            while(i<size){ //go through the PCBs array
+	            bufferedWriter.write("ID:"+pcb[i].getId()+";CPU:"+pcb[i].getTime()+";SZ:"+pcb[i].getSize()); // Write it in correct formating
+	            bufferedWriter.newLine();
+	            i++;
+            }
+            // close file.
+            bufferedWriter.close();
+        }
+        catch(IOException ex) {
+            System.out.println("Error writing to file '"+ filename + ","+ex);
+
+        }catch(Exception ex) {  // Every other error
+            System.out.println("Error '"+ filename + ","+ex);                  
+	        }
 	}
 }
