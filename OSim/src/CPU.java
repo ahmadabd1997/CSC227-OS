@@ -25,7 +25,7 @@ public class CPU {
 	}
 	
 	public void Work(){
-		this.Process.setTime(this.Process.getTime()-1);
+		Process.CPUWork();
 	}
 	
 }

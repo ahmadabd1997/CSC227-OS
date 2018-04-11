@@ -3,73 +3,127 @@ import java.util.Random;
 
 public class OSim {
 	static Random rand;
+	static PCB[] HD = new PCB[5000]; // change to Linkedlist(Maybe)
+	static PCB[] MM = new PCB[3000];
 	static int nPCBs;
 	static int nPCBsMM;
+	static int HDsize = 200; //  should be able to change the size 2097152
+	static int MMsize = 200; // 163840
+	
+	
 	public static void main(String[] args) {
 		rand = new Random();
 		
-		PCB[] HD = new PCB[5000]; // change to Linkedlist(Maybe)
-		int HDsize = 2097152; //  should be able to change the size 2097152
-		int MMsize = 163840; // 163840
-		
-		nPCBs = FillHD(HDsize,HD); // Fill the HD
-		PCB[] MM = new PCB[3000];
+		nPCBs = FillHD(); // Fill the HD
 		int SnPCBs = nPCBs;
-		arrangeHD(HD);
+		arrangeHD();
 		nPCBsMM =0;
 		Queue<PCB> WQ = new Queue<PCB>();
 		CPU CPU = new CPU();
 		
 		while(nPCBs != 0 || nPCBsMM != 0 || CPU.isBusy()){
-			while(nPCBs >0 && MMsize>=HD[nPCBs-1].getSize()){// fill OR add to MM
-				
-				System.out.println("add HD["+ (nPCBs-1) + "] to MM[" +nPCBsMM+"]");
-				
-				MMsize -= HD[nPCBs-1].getSize();
-				MM[nPCBsMM] = new PCB(HD[--nPCBs]);
-				MM[nPCBsMM].setState(PCB.state.Ready);
-				nPCBsMM++;
-			}
-			arrangeMM(MM);
-			if(!CPU.isBusy()){ // free (add process to CPU)
-				//MMsize += MM[nPCBsMM-1].getSize(); // the process still in memmory (still running) // !!! IMPORTANT !!!
-				int i =nPCBsMM-1;
-				while(!CPU.isBusy() && i>= 0){
-					if(MM[i].getState() == PCB.state.Ready){
-						CPU.setProcess(MM[--nPCBsMM]);
-						CPU.getProcess().setState(PCB.state.Running);
-						CPU.setBusy(true);
+			System.out.println("nPCBs = "+ nPCBs +" nPCBsMM = " + nPCBsMM);
+			{
+				int i=SnPCBs-1;
+				while(i>=0 && nPCBs >0 && MMsize>=HD[i].getSize()){// fill OR add to MM
+					if(HD[i].getState() == PCB.state.New){
+						System.out.println("add HD["+ (i) + "] = "+HD[i]+" to MM[" +nPCBsMM+"]");
+						
+						MMsize -= HD[i].getSize();
+						MM[nPCBsMM] = HD[i];
+						MM[nPCBsMM].setState(PCB.state.Ready);
+						nPCBsMM++;
 					}
 					i--;
 				}
 			}
+			arrangeMM();
+			if(!CPU.isBusy()){ // free (add process to CPU)
+				//MMsize += MM[nPCBsMM-1].getSize(); // the process still in memmory (still running) // !!! IMPORTANT !!!
+				SelectPtoCPU(CPU,MM);
+			}
 			else{ // busy (Work) //rand.nextInt()
 				CPU.Work();
-				if(CPU.getProcess().getTime() == 0)
-					CPU.setBusy(false);
+				if(CPU.getProcess().getCPUrtime() <= 0){ // normal termination
+					Terminate(CPU);
+				}
 				else{
-					if(rand.nextInt(100)+1 <= 10){ // interrupt
+					if(rand.nextInt(100)+1 <= 10){ // Interrupt
+						System.out.println("Interrupt");
 						PCB temp = CPU.getProcess();
-						CPU.setProcess(MM[nPCBsMM-1]);
+						temp.setState(PCB.state.Waiting);
+						CPU.setBusy(false);
+						SelectPtoCPU(CPU,MM);
+						temp.setState(PCB.state.Ready);
 					}
 					else if(rand.nextInt(100)+1 <= 20){ // IO request
+						System.out.println("IO request");
 						WQ.addFirst(CPU.getProcess());
 						CPU.getProcess().setState(PCB.state.Waiting);
+						CPU.setBusy(false);
 					}
+					else if(rand.nextInt(100)+1 <= 5){ // Process terminate normally
+						System.out.println("Terminate");
+						Terminate(CPU);
+					}
+					else if(rand.nextInt(100)+1 <= 1){
+						System.out.println("Terminate");
+						Terminate(CPU);
+					}
+				}
+			}
+			if(!WQ.isEmpty()){
+				PCB temp = WQ.getLast();
+				temp.IOWork();
+				if(temp.getIOrtime() <= 0){ // IO is done
+					System.out.println("IO is done");
+					WQ.removeLast();
+					temp.setState(PCB.state.Ready);
+				}
+				else if(rand.nextInt(100)+1 <= 20){ // IO terminate
+					System.out.println("IO terminate");
+					WQ.removeLast();
+					temp.setState(PCB.state.Ready);
 				}
 			}
 			
 		}
 	}
 	
-	public static int FillHD(int HDsize,PCB[] HD){ // HDsize in KB
-		int nPCBs = 0, size =0, time =0,id =0;
+	public static void Terminate(CPU CPU){
+		CPU.getProcess().setCPUbound(CPU.getProcess().getCPUctime()>=CPU.getProcess().getIOctime());
+		CPU.getProcess().setState(PCB.state.Terminated);
+		CPU.setBusy(false);
+		CPU.getProcess().setCPUrtime(-5);
+		arrangeMM();
+		nPCBsMM--;
+		MMsize += CPU.getProcess().getSize();
+		nPCBs--;
+	}
+	
+	public static boolean SelectPtoCPU(CPU CPU,PCB[] MM){
+		int i =nPCBsMM-1;
+		while(!CPU.isBusy() && i>= 0){
+			if(MM[i].getState() == PCB.state.Ready){
+				CPU.setProcess(MM[i]);
+				CPU.getProcess().setState(PCB.state.Running);
+				CPU.setBusy(true);
+				return true;
+			}
+			i--;
+		}
+		return false;
+	}
+	
+	public static int FillHD(){ // HDsize in KB
+		int nPCBs = 0, size =0, CPUtime =0, id =0, IOtime =0;
 		
 		while(HDsize >= 16){
-			size = rand.nextInt(16369)+16;
+			size = rand.nextInt(200)+16;
 			if(size <= HDsize){
-				time = rand.nextInt(101)+100;
-				HD[id] = new PCB(id++,size,time,PCB.state.New);
+				IOtime = rand.nextInt(101)+100;
+				CPUtime = rand.nextInt(497)+16;
+				HD[id] = new PCB(id++,size,CPUtime,IOtime,PCB.state.New);
 				HDsize -= size;
 				nPCBs++;
 			}
@@ -78,7 +132,7 @@ public class OSim {
 		return nPCBs;
 	}
 	
-	public static void arrangeHD(PCB[] HD){
+	public static void arrangeHD(){
 		PCB temp;
 		for(int i=1;i<nPCBs;i++){
 			for(int j=0;j<nPCBs-i;j++){
@@ -91,7 +145,7 @@ public class OSim {
 		}
 	}
 	
-	public static void arrangeMM(PCB[] MM ){
+	public static void arrangeMM(){
 		PCB temp;
 		for(int i=1;i<nPCBsMM;i++){
 			for(int j=0;j<nPCBsMM-i;j++){
@@ -103,12 +157,8 @@ public class OSim {
 			}
 		}
 	}
-	
-	public static void selectPtoCPU(){
-		
-	}
-	
-	public static PCB[] readFile(String lo){
+
+	public static PCB[] readFile(String lo){					//ahmad edited here need to check if correct
 		PCB[] pcb= new PCB[5000]; //Size can vary
 		String line="";
 		int count=0; 
@@ -116,14 +166,16 @@ public class OSim {
 	            FileReader fileReader = new FileReader(lo);
 	            BufferedReader bufferedReader = new BufferedReader(fileReader);
 
-	            while((line = bufferedReader.readLine()) != null) {  	//go through the file line by line
-	                int cp,sz,id,size,time;
-	                cp = line.indexOf(";CPU"); 							//flag where ID ends
-	                sz = line.indexOf(";SZ");							//flag where CPU time ends
-	                id = Integer.parseInt(line.substring(3, cp));  		//Read ID then Convert it from String to integer
-	                time = Integer.parseInt(line.substring(cp+5, sz));	//Read CPU time then Convert it from String to integer
-	                size = Integer.parseInt(line.substring(sz+4));		//Read the Size then Convert it from String to integer
-	                pcb[count++]= new PCB(id,size,time,PCB.state.New);	// Add everything to PCB[i] Array 
+	            while((line = bufferedReader.readLine()) != null) {  				//go through the file line by line
+	                int cp,sz,io,id,size,CPUtime,IOtime;
+	                cp = line.indexOf(";CPU"); 										//flag where ID ends
+	                sz = line.indexOf(";SZ");										//flag where CPU time ends
+	                io = line.indexOf(";IO");										//flag where Size ends
+	                id = Integer.parseInt(line.substring(3, cp));  					//Read ID then Convert it from String to integer
+	                CPUtime = Integer.parseInt(line.substring(cp+5, sz));			//Read CPU time then Convert it from String to integer
+	                size = Integer.parseInt(line.substring(sz+4,io));				//Read the Size then Convert it from String to integer
+	                IOtime = Integer.parseInt(line.substring(io+4));
+	                pcb[count++]= new PCB(id,size,CPUtime,IOtime,PCB.state.New);	// Add everything to PCB[i] Array 
 	            }   
 	            System.out.println(count+" Processes added");
 
@@ -141,14 +193,14 @@ public class OSim {
 		 return pcb;
 	}
 	
-	public static void writeFile(String filename,PCB[] pcb,int size){
+	public static void writeFile(String filename,PCB[] pcb,int size){				//ahmad edited here need to check if correct
 		int i = 0;
         try {
             FileWriter fileWriter = new FileWriter(filename);
             BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
 
             while(i<size){ //go through the PCBs array
-	            bufferedWriter.write("ID:"+pcb[i].getId()+";CPU:"+pcb[i].getTime()+";SZ:"+pcb[i].getSize()); // Write it in correct formating
+	            bufferedWriter.write("ID:"+pcb[i].getId()+";CPU:"+pcb[i].getCPUrtime()+";SZ:"+pcb[i].getSize()+";IO:"+pcb[i].getIObtime()); // Write it in correct formating
 	            bufferedWriter.newLine();
 	            i++;
             }
