@@ -109,7 +109,7 @@ public class PCB {
 
 	@Override
 	public String toString() {
-		String s = "PCB #"+id+" st : " + state + ", size : " + size +", time : " + CPUrtime;
+		String s = "PCB #"+id+" st : " + state + ", size : " + size +", Ctime : " + CPUrtime + ", Itime : " + IOrtime;
 		return s;
 	}
 	
@@ -120,13 +120,13 @@ public class PCB {
 		return this.size - x.size;
 	}
 	public void CPUWork(){
-		System.out.println("CPUWORK : " + this);
+		//System.out.println("CPUWORK : " + this);
 		CPUrtime-= 1;
 		CPUctime+= 1;
 	}
 	public void IOWork(){
-		System.out.println("IOWORK : " + this);
-		CPUrtime-= 1;
-		CPUctime+= 1;
+		//System.out.println("IOWORK : " + this);
+		IOrtime-= 1;
+		IOctime+= 1;
 	}
 }

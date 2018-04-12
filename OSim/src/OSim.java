@@ -22,7 +22,8 @@ public class OSim {
 		CPU CPU = new CPU();
 		
 		while(nPCBs != 0 || nPCBsMM != 0 || CPU.isBusy()){
-			System.out.println("nPCBs = "+ nPCBs +" nPCBsMM = " + nPCBsMM);
+			//System.out.println("HD processes :");
+			
 			{
 				int i=SnPCBs-1;
 				while(i>=0 && nPCBs >0 && MMsize>=HD[i].getSize()){// fill OR add to MM
@@ -42,48 +43,53 @@ public class OSim {
 				//MMsize += MM[nPCBsMM-1].getSize(); // the process still in memmory (still running) // !!! IMPORTANT !!!
 				SelectPtoCPU(CPU,MM);
 			}
-			else{ // busy (Work) //rand.nextInt()
+			if(CPU.isBusy()){ // busy (Work) //rand.nextInt()
 				CPU.Work();
 				if(CPU.getProcess().getCPUrtime() <= 0){ // normal termination
 					Terminate(CPU);
 				}
 				else{
 					if(rand.nextInt(100)+1 <= 10){ // Interrupt
-						System.out.println("Interrupt");
+						
 						PCB temp = CPU.getProcess();
+						System.out.println("Interrupted #" + temp.getId());
 						temp.setState(PCB.state.Waiting);
 						CPU.setBusy(false);
 						SelectPtoCPU(CPU,MM);
 						temp.setState(PCB.state.Ready);
 					}
 					else if(rand.nextInt(100)+1 <= 20){ // IO request
-						System.out.println("IO request");
-						WQ.addFirst(CPU.getProcess());
+						System.out.println("IO request #" + CPU.getProcess().getId());
 						CPU.getProcess().setState(PCB.state.Waiting);
+						WQ.addLast(CPU.getProcess());
 						CPU.setBusy(false);
+						SelectPtoCPU(CPU,MM);
 					}
 					else if(rand.nextInt(100)+1 <= 5){ // Process terminate normally
-						System.out.println("Terminate");
+						System.out.println("Terminate #" + CPU.getProcess().getId());
 						Terminate(CPU);
 					}
 					else if(rand.nextInt(100)+1 <= 1){
-						System.out.println("Terminate");
+						System.out.println("Terminate #" + CPU.getProcess().getId());
 						Terminate(CPU);
 					}
 				}
 			}
 			if(!WQ.isEmpty()){
-				PCB temp = WQ.getLast();
+				PCB temp = WQ.getFirst();
 				temp.IOWork();
 				if(temp.getIOrtime() <= 0){ // IO is done
-					System.out.println("IO is done");
-					WQ.removeLast();
+					System.out.println("IO is done #" + temp.getId());
+					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
 				}
 				else if(rand.nextInt(100)+1 <= 20){ // IO terminate
-					System.out.println("IO terminate");
-					WQ.removeLast();
+					
+					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
+					System.out.println("IO terminate " + temp);
+					for(int i=0;i<nPCBsMM;i++)
+						System.out.println("	MM["+i+"] : " + MM[i]);
 				}
 			}
 			
@@ -103,8 +109,10 @@ public class OSim {
 	
 	public static boolean SelectPtoCPU(CPU CPU,PCB[] MM){
 		int i =nPCBsMM-1;
+		CPU.setBusy(false);
 		while(!CPU.isBusy() && i>= 0){
 			if(MM[i].getState() == PCB.state.Ready){
+				System.out.println("Select #" + MM[i].getId());
 				CPU.setProcess(MM[i]);
 				CPU.getProcess().setState(PCB.state.Running);
 				CPU.setBusy(true);
