@@ -100,7 +100,7 @@ public class PCB {
 	}
 
 	public boolean isCPUbound() {
-		return CPUbound;
+		return CPUctime>IOctime;
 	}
 
 	public void setCPUbound(boolean cPUbound) {

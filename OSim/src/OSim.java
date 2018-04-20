@@ -3,19 +3,19 @@ import java.util.Random;
 
 public class OSim {
 	static Random rand;
-	static PCB[] HD = new PCB[50000]; // change to Linkedlist(Maybe)
-	static PCB[] MM = new PCB[30000];
+	static PCB[] HD = new PCB[20000]; // change to Linkedlist(Maybe)
+	static PCB[] MM = new PCB[7000];
 	static int nPCBs;
 	static int nPCBsMM;
 	static int HDsize = 2097152; //  should be able to change the size 2097152
 	static int MMsize = 163840; // 163840
-	
+	static int CB=0,IB=0,avgSize=0,aNT=0,NT=0;
 	
 	public static void main(String[] args) throws InterruptedException {
 		rand = new Random();
-		
 		nPCBs = FillHD(); // Fill the HD
 		int SnPCBs = nPCBs;
+		int nH=nPCBs,nR=0,nW=0,nT=0;
 		arrangeHD();
 		nPCBsMM =0;
 		Queue<PCB> WQ = new Queue<PCB>();
@@ -25,14 +25,15 @@ public class OSim {
 			//System.out.println("HD processes :");
 			
 			{
-			/*	counteri++;
-				if(counteri%500==0)
+				counteri++;
+				if(counteri%100==0)
 				{
 				//	Thread.sleep(277);
-					for(int i=0;i<100;i++)
-						System.out.println(MM[i]);
-					System.out.println("========");
-				}*/
+				//	for(int i=0;i<100;i++)
+				//		System.out.println(MM[i]);
+				//	System.out.println("========");
+					System.out.println("Hardisk: "+nH+", Ready: "+nR+", Waiting: "+nW+", Terminated: "+nT);
+				}
 				int i=SnPCBs-1;
 				while(i>=0 && nPCBs >0 && MMsize>=HD[i].getSize()){// fill OR add to MM (Memory/Ready Q)
 					if(HD[i].getState() == PCB.state.New){
@@ -41,6 +42,8 @@ public class OSim {
 						MMsize -= HD[i].getSize();
 						MM[nPCBsMM] = HD[i];
 						MM[nPCBsMM].setState(PCB.state.Ready);
+						nR++;
+						nH--;
 						nPCBsMM++;
 					}
 					i--;
@@ -55,6 +58,8 @@ public class OSim {
 				CPU.Work();
 				if(CPU.getProcess().getCPUrtime() <= 0){ // normal termination
 					Terminate(CPU,0);
+					nT++;
+					nR--;
 				}
 //====================================================================================  // Chance Process Will be Removed =======================
 				else{
@@ -65,22 +70,28 @@ public class OSim {
 						temp.setState(PCB.state.Waiting);
 						CPU.setBusy(false);
 						SelectPtoCPU(CPU,MM);
-						temp.setState(PCB.state.Ready);
+						temp.setState(PCB.state.Ready);	
 					}
 					else if(rand.nextInt(100)+1 <= 20){ // IO request
 				//		System.out.println("IO request #" + CPU.getProcess().getId());
 						CPU.getProcess().setState(PCB.state.Waiting);
+						nW++;
 						WQ.addLast(CPU.getProcess());
 						CPU.setBusy(false);
 						SelectPtoCPU(CPU,MM);
+						nR--;
 					}
 					else if(rand.nextInt(100)+1 <= 5){ // Process terminate normally
-						System.out.println("Terminate #" + CPU.getProcess().getId());
-						Terminate(CPU,1);
-					}
-					else if(rand.nextInt(100)+1 <= 1){// Process terminate up normally
-						System.out.println("Terminate #" + CPU.getProcess().getId());
+			//			System.out.println("Terminate #" + CPU.getProcess().getId());
 						Terminate(CPU,2);
+						nT++;
+						nR--;
+					}
+					else if(rand.nextInt(100)+1 <= 1){// Process terminate abnormally
+			//			System.out.println("Terminate #" + CPU.getProcess().getId());
+						Terminate(CPU,1);
+						nT++;
+						nR--;
 					}
 //========================================================================================================================================
 				}
@@ -93,11 +104,15 @@ public class OSim {
 					temp.setIOrtime(temp.getIObtime());
 					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
+					nW--;
+					nR++;
 				}
 				else if(rand.nextInt(100)+1 <= 20){ // IO terminate
 					
 					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
+					nW--;
+					nR++;
 			//		System.out.println("IO terminate " + temp);
 			/*	for(int i=0;i<nPCBsMM;i++)
 						System.out.println("	MM["+i+"] : " + MM[i]);*/
@@ -106,18 +121,30 @@ public class OSim {
 			}
 			
 		}
+		System.out.println("Final : Hardisk: "+nH+", Ready: "+nR+", Waiting: "+nW+", Terminated: "+nT+
+				"\nIntial Jobs on Hardisk: "+nT+", CPU Bound: "+CB+", IO Bound: "+IB+", Average size of processes: "+ avgSize/nT+"KB, abNormal Termination: "+ aNT+", Normal Termination: "+NT);
 	}
 	
 	public static void Terminate(CPU CPU,int st){
 		CPU.getProcess().setCPUbound(CPU.getProcess().getCPUctime()>=CPU.getProcess().getIOctime());
 		CPU.getProcess().setState(PCB.state.Terminated);
 		CPU.setBusy(false);
-		if(st==0)
+		if(st==0){
 			CPU.getProcess().setCPUrtime(0);
-		else if(st==1)
+			NT++;
+		}
+		else if(st==1){
 			CPU.getProcess().setCPUrtime(-5);
-		else
+			aNT++;
+		}
+		else{
 			CPU.getProcess().setCPUrtime(-10);
+			NT++;
+		}
+		if(CPU.getProcess().isCPUbound())
+			CB++;
+		else
+			IB++;
 		arrangeMM();
 		nPCBsMM--;
 		MMsize += CPU.getProcess().getSize();
@@ -144,11 +171,12 @@ public class OSim {
 		int nPCBs = 0, size =0, CPUtime =0, id =0, IOtime =0;
 		
 		while(HDsize >= 16){
-			size = rand.nextInt(200)+16;
+			size = rand.nextInt(1300)+16;
 			if(size <= HDsize){
 				IOtime = rand.nextInt(101)+100;
 				CPUtime = rand.nextInt(497)+16;
 				HD[id] = new PCB(id++,size,CPUtime,IOtime,PCB.state.New);
+				avgSize+= size;
 				HDsize -= size;
 				nPCBs++;
 			}
