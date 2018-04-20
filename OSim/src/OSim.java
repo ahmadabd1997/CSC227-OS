@@ -3,15 +3,15 @@ import java.util.Random;
 
 public class OSim {
 	static Random rand;
-	static PCB[] HD = new PCB[5000]; // change to Linkedlist(Maybe)
-	static PCB[] MM = new PCB[3000];
+	static PCB[] HD = new PCB[50000]; // change to Linkedlist(Maybe)
+	static PCB[] MM = new PCB[30000];
 	static int nPCBs;
 	static int nPCBsMM;
-	static int HDsize = 200; //  should be able to change the size 2097152
-	static int MMsize = 200; // 163840
+	static int HDsize = 2097152; //  should be able to change the size 2097152
+	static int MMsize = 163840; // 163840
 	
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException {
 		rand = new Random();
 		
 		nPCBs = FillHD(); // Fill the HD
@@ -20,15 +20,23 @@ public class OSim {
 		nPCBsMM =0;
 		Queue<PCB> WQ = new Queue<PCB>();
 		CPU CPU = new CPU();
-		
-		while(nPCBs != 0 || nPCBsMM != 0 || CPU.isBusy()){
+		int counteri = 0;
+		while(nPCBs != 0 ||/* nPCBsMM != 0 ||*/ CPU.isBusy()){
 			//System.out.println("HD processes :");
 			
 			{
+			/*	counteri++;
+				if(counteri%500==0)
+				{
+				//	Thread.sleep(277);
+					for(int i=0;i<100;i++)
+						System.out.println(MM[i]);
+					System.out.println("========");
+				}*/
 				int i=SnPCBs-1;
-				while(i>=0 && nPCBs >0 && MMsize>=HD[i].getSize()){// fill OR add to MM
+				while(i>=0 && nPCBs >0 && MMsize>=HD[i].getSize()){// fill OR add to MM (Memory/Ready Q)
 					if(HD[i].getState() == PCB.state.New){
-						System.out.println("add HD["+ (i) + "] = "+HD[i]+" to MM[" +nPCBsMM+"]");
+					//	System.out.println("add HD["+ (i) + "] = "+HD[i]+" to MM[" +nPCBsMM+"]");
 						
 						MMsize -= HD[i].getSize();
 						MM[nPCBsMM] = HD[i];
@@ -38,28 +46,29 @@ public class OSim {
 					i--;
 				}
 			}
-			arrangeMM();
+			arrangeMM(); 
 			if(!CPU.isBusy()){ // free (add process to CPU)
-				//MMsize += MM[nPCBsMM-1].getSize(); // the process still in memmory (still running) // !!! IMPORTANT !!!
+				//MMsize += MM[nPCBsMM-1].getSize(); // the process still in memory (still running) // !!! IMPORTANT !!!
 				SelectPtoCPU(CPU,MM);
 			}
 			if(CPU.isBusy()){ // busy (Work) //rand.nextInt()
 				CPU.Work();
 				if(CPU.getProcess().getCPUrtime() <= 0){ // normal termination
-					Terminate(CPU);
+					Terminate(CPU,0);
 				}
+//====================================================================================  // Chance Process Will be Removed =======================
 				else{
 					if(rand.nextInt(100)+1 <= 10){ // Interrupt
 						
 						PCB temp = CPU.getProcess();
-						System.out.println("Interrupted #" + temp.getId());
+				//		System.out.println("Interrupted #" + temp.getId());
 						temp.setState(PCB.state.Waiting);
 						CPU.setBusy(false);
 						SelectPtoCPU(CPU,MM);
 						temp.setState(PCB.state.Ready);
 					}
 					else if(rand.nextInt(100)+1 <= 20){ // IO request
-						System.out.println("IO request #" + CPU.getProcess().getId());
+				//		System.out.println("IO request #" + CPU.getProcess().getId());
 						CPU.getProcess().setState(PCB.state.Waiting);
 						WQ.addLast(CPU.getProcess());
 						CPU.setBusy(false);
@@ -67,19 +76,21 @@ public class OSim {
 					}
 					else if(rand.nextInt(100)+1 <= 5){ // Process terminate normally
 						System.out.println("Terminate #" + CPU.getProcess().getId());
-						Terminate(CPU);
+						Terminate(CPU,1);
 					}
-					else if(rand.nextInt(100)+1 <= 1){
+					else if(rand.nextInt(100)+1 <= 1){// Process terminate up normally
 						System.out.println("Terminate #" + CPU.getProcess().getId());
-						Terminate(CPU);
+						Terminate(CPU,2);
 					}
+//========================================================================================================================================
 				}
 			}
-			if(!WQ.isEmpty()){
+			if(!WQ.isEmpty()){ //Waiting Queue has something?
 				PCB temp = WQ.getFirst();
 				temp.IOWork();
-				if(temp.getIOrtime() <= 0){ // IO is done
-					System.out.println("IO is done #" + temp.getId());
+				if(temp.getIOrtime() <= 0){ // IO is done?
+		//			System.out.println("IO is done #" + temp.getId());
+					temp.setIOrtime(temp.getIObtime());
 					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
 				}
@@ -87,32 +98,38 @@ public class OSim {
 					
 					WQ.removeFirst();
 					temp.setState(PCB.state.Ready);
-					System.out.println("IO terminate " + temp);
-					for(int i=0;i<nPCBsMM;i++)
-						System.out.println("	MM["+i+"] : " + MM[i]);
+			//		System.out.println("IO terminate " + temp);
+			/*	for(int i=0;i<nPCBsMM;i++)
+						System.out.println("	MM["+i+"] : " + MM[i]);*/
 				}
+				
 			}
 			
 		}
 	}
 	
-	public static void Terminate(CPU CPU){
+	public static void Terminate(CPU CPU,int st){
 		CPU.getProcess().setCPUbound(CPU.getProcess().getCPUctime()>=CPU.getProcess().getIOctime());
 		CPU.getProcess().setState(PCB.state.Terminated);
 		CPU.setBusy(false);
-		CPU.getProcess().setCPUrtime(-5);
+		if(st==0)
+			CPU.getProcess().setCPUrtime(0);
+		else if(st==1)
+			CPU.getProcess().setCPUrtime(-5);
+		else
+			CPU.getProcess().setCPUrtime(-10);
 		arrangeMM();
 		nPCBsMM--;
 		MMsize += CPU.getProcess().getSize();
 		nPCBs--;
 	}
 	
-	public static boolean SelectPtoCPU(CPU CPU,PCB[] MM){
+	public static boolean SelectPtoCPU(CPU CPU,PCB[] MM){  //Select Process and add it to the CPU
 		int i =nPCBsMM-1;
 		CPU.setBusy(false);
 		while(!CPU.isBusy() && i>= 0){
 			if(MM[i].getState() == PCB.state.Ready){
-				System.out.println("Select #" + MM[i].getId());
+		//		System.out.println("Select #" + MM[i].getId());
 				CPU.setProcess(MM[i]);
 				CPU.getProcess().setState(PCB.state.Running);
 				CPU.setBusy(true);
@@ -145,8 +162,8 @@ public class OSim {
 		for(int i=1;i<nPCBs;i++){
 			for(int j=0;j<nPCBs-i;j++){
 				if(HD[j].compareSize(HD[j+1]) < 0){
-					temp = new PCB(HD[j]);
-					HD[j] = new PCB(HD[j+1]);
+					temp = HD[j];
+					HD[j] = HD[j+1];
 					HD[j+1] = temp;
 				}
 			}
@@ -158,8 +175,8 @@ public class OSim {
 		for(int i=1;i<nPCBsMM;i++){
 			for(int j=0;j<nPCBsMM-i;j++){
 				if(MM[j].compareTime(MM[j+1]) < 0){
-					temp = new PCB(MM[j]);
-					MM[j] = new PCB(MM[j+1]);
+					temp = MM[j];
+					MM[j] = MM[j+1];
 					MM[j+1] = temp;
 				}
 			}

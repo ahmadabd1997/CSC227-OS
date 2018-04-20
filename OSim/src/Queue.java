@@ -20,7 +20,7 @@ public class Queue<T> {
 	public void addLast(T e) {
 		Node<T> temp = new Node<T>();
 		temp.data = e;
-		System.out.println("added #" + temp.data + "\n to Queue at " + n);
+		//System.out.println("added #" + temp.data + "\n to Queue at " + n);
 		if(n!=0){
 			tail.next = temp;
 			tail = temp;
